@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "MOONFLOW",
+    "slug": "moonflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "moonflow",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow MOONFLOW to access photos and save media to your gallery.",
+        "NSPhotoLibraryAddUsageDescription": "Allow MOONFLOW to save downloaded videos and audio."
+      }
+    },
+    "android": {
+      "package": "com.moonhub.moonflow",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0819",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "ACCESS_MEDIA_LOCATION",
+        "MANAGE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B0819",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow MOONFLOW to access photos and save media to your gallery.",
+          "savePhotosPermission": "Allow MOONFLOW to save downloaded videos and audio.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      "expo-video",
+      "expo-font",
+      "expo-status-bar",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
