@@ -5,7 +5,68 @@ import * as Sharing from 'expo-sharing';
 import { WhatsAppStatusItem } from '@/types/media';
 import { storageService } from './storage.service';
 
+const STATUS_FOLDER_URI_FILE = FileSystem.documentDirectory
+  ? `${FileSystem.documentDirectory}whatsapp_status_folder_uri.txt`
+  : null;
+const LEGACY_PERMISSIONS_FILE = FileSystem.documentDirectory
+  ? `${FileSystem.documentDirectory}permissions_state.json`
+  : null;
+
 class StatusSaverService {
+  async getSavedFolderUri(): Promise<string | null> {
+    if (Platform.OS !== 'android') {
+      return null;
+    }
+
+    if (!STATUS_FOLDER_URI_FILE) {
+      throw new Error('App storage is unavailable.');
+    }
+
+    const info = await FileSystem.getInfoAsync(STATUS_FOLDER_URI_FILE);
+    if (info.exists) {
+      const uri = (await FileSystem.readAsStringAsync(STATUS_FOLDER_URI_FILE)).trim();
+      return uri || null;
+    }
+
+    if (!LEGACY_PERMISSIONS_FILE) {
+      return null;
+    }
+
+    const legacyInfo = await FileSystem.getInfoAsync(LEGACY_PERMISSIONS_FILE);
+    if (!legacyInfo.exists) {
+      return null;
+    }
+
+    const legacyState: unknown = JSON.parse(
+      await FileSystem.readAsStringAsync(LEGACY_PERMISSIONS_FILE)
+    );
+    if (
+      typeof legacyState !== 'object' ||
+      legacyState === null ||
+      !('folderUri' in legacyState) ||
+      typeof legacyState.folderUri !== 'string'
+    ) {
+      return null;
+    }
+
+    const uri = legacyState.folderUri.trim();
+    if (!uri) {
+      return null;
+    }
+
+    await FileSystem.writeAsStringAsync(STATUS_FOLDER_URI_FILE, uri);
+    return uri;
+  }
+
+  async clearSavedFolderUri(): Promise<void> {
+    if (Platform.OS === 'android') {
+      if (!STATUS_FOLDER_URI_FILE) {
+        throw new Error('App storage is unavailable.');
+      }
+      await FileSystem.deleteAsync(STATUS_FOLDER_URI_FILE, { idempotent: true });
+    }
+  }
+
   /**
    * Android 11+ SAF directory URI for WhatsApp Statuses
    */
@@ -14,25 +75,29 @@ class StatusSaverService {
       return { granted: false };
     }
 
-    try {
-      const SAF = FileSystem.StorageAccessFramework;
-      if (!SAF) {
-        return { granted: false };
-      }
+    const SAF = FileSystem.StorageAccessFramework;
+    if (!SAF) {
+      throw new Error('Android Storage Access Framework is unavailable.');
+    }
 
-      const initialUri = SAF.getUriForDirectoryInRoot(
-        'Android/media/com.whatsapp/WhatsApp/Media/.Statuses'
-      );
+    const initialUri = SAF.getUriForDirectoryInRoot(
+      'Android/media/com.whatsapp/WhatsApp/Media/.Statuses'
+    );
 
-      const permission = await SAF.requestDirectoryPermissionsAsync(initialUri);
-      return {
-        granted: permission.granted,
-        directoryUri: permission.granted ? permission.directoryUri : undefined,
-      };
-    } catch (e) {
-      console.warn('Error requesting SAF permissions:', e);
+    const permission = await SAF.requestDirectoryPermissionsAsync(initialUri);
+    if (!permission.granted || !permission.directoryUri) {
       return { granted: false };
     }
+
+    if (!STATUS_FOLDER_URI_FILE) {
+      throw new Error('App storage is unavailable.');
+    }
+
+    await FileSystem.writeAsStringAsync(STATUS_FOLDER_URI_FILE, permission.directoryUri);
+    return {
+      granted: true,
+      directoryUri: permission.directoryUri,
+    };
   }
 
   /**
@@ -43,42 +108,39 @@ class StatusSaverService {
       return [];
     }
 
-    try {
-      const SAF = FileSystem.StorageAccessFramework;
-      if (!SAF) return [];
-
-      const fileUris = await SAF.readDirectoryAsync(directoryUri);
-      const items: WhatsAppStatusItem[] = [];
-
-      for (const uri of fileUris) {
-        const decoded = decodeURIComponent(uri);
-        const isVideo = decoded.endsWith('.mp4') || decoded.endsWith('.3gp');
-        const isImage =
-          decoded.endsWith('.jpg') ||
-          decoded.endsWith('.jpeg') ||
-          decoded.endsWith('.png') ||
-          decoded.endsWith('.webp');
-
-        if (isVideo || isImage) {
-          const parts = decoded.split('/');
-          const filename = parts[parts.length - 1] || `status_${Date.now()}`;
-
-          items.push({
-            id: uri,
-            name: filename,
-            uri,
-            type: isVideo ? 'video' : 'image',
-            timestamp: Date.now(),
-            isSaved: false,
-          });
-        }
-      }
-
-      return items;
-    } catch (e) {
-      console.warn('Failed reading WhatsApp status directory:', e);
-      return [];
+    const SAF = FileSystem.StorageAccessFramework;
+    if (!SAF) {
+      throw new Error('Android Storage Access Framework is unavailable.');
     }
+
+    const fileUris = await SAF.readDirectoryAsync(directoryUri);
+    const items: WhatsAppStatusItem[] = [];
+
+    for (const uri of fileUris) {
+      const decoded = decodeURIComponent(uri);
+      const isVideo = decoded.endsWith('.mp4') || decoded.endsWith('.3gp');
+      const isImage =
+        decoded.endsWith('.jpg') ||
+        decoded.endsWith('.jpeg') ||
+        decoded.endsWith('.png') ||
+        decoded.endsWith('.webp');
+
+      if (isVideo || isImage) {
+        const parts = decoded.split('/');
+        const filename = parts[parts.length - 1] || `status_${Date.now()}`;
+
+        items.push({
+          id: uri,
+          name: filename,
+          uri,
+          type: isVideo ? 'video' : 'image',
+          timestamp: Date.now(),
+          isSaved: false,
+        });
+      }
+    }
+
+    return items;
   }
 
   /**

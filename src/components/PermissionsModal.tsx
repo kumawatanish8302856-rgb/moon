@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAppTheme } from '@/context/ThemeContext';
 import { permissionService, AppPermissionsStatus } from '@/services/permission.service';
 
@@ -62,6 +63,11 @@ export function PermissionsModal({ visible, onClose }: PermissionsModalProps) {
     try {
       await permissionService.requestStorageFolderAccess();
       await refreshStatus();
+    } catch (error) {
+      Alert.alert(
+        'Storage Permission Error',
+        error instanceof Error ? error.message : 'Could not access the WhatsApp Status folder.'
+      );
     } finally {
       setLoading(false);
     }
@@ -72,6 +78,11 @@ export function PermissionsModal({ visible, onClose }: PermissionsModalProps) {
     try {
       await permissionService.requestAllPermissions();
       await refreshStatus();
+    } catch (error) {
+      Alert.alert(
+        'Permission Error',
+        error instanceof Error ? error.message : 'Could not grant app permissions.'
+      );
     } finally {
       setLoading(false);
     }

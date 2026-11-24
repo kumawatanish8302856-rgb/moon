@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { WhatsAppStatusItem } from '@/types/media';
 import { statusSaverService } from '@/services/status-saver.service';
@@ -90,7 +90,7 @@ export function StatusPreviewModal({
   };
 
   return (
-    <Modal visible={visible} transparent={false} animationType="fade">
+    <Modal visible={visible} transparent={false} animationType="fade" onRequestClose={onClose}>
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
 

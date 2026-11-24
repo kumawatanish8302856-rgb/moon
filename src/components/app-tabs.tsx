@@ -6,6 +6,7 @@ export default function AppTabs() {
 
   return (
     <NativeTabs
+      backBehavior="history"
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.primary } }}>

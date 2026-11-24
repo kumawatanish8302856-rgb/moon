@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as MediaLibrary from 'expo-media-library/legacy';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Clipboard from 'expo-clipboard';
+import { statusSaverService } from './status-saver.service';
 
 export interface AppPermissionsStatus {
   gallery: boolean;
@@ -9,8 +9,6 @@ export interface AppPermissionsStatus {
   clipboard: boolean;
   allGranted: boolean;
 }
-
-const PERMISSIONS_FILE = (FileSystem.documentDirectory ?? '') + 'permissions_state.json';
 
 class PermissionService {
   /**
@@ -52,7 +50,6 @@ class PermissionService {
       if (!res.granted) {
         res = await MediaLibrary.requestPermissionsAsync();
       }
-      await this.saveState();
       return res.granted;
     } catch {
       return false;
@@ -68,17 +65,11 @@ class PermissionService {
     }
 
     try {
-      // Check if we previously saved a granted SAF folder
-      const info = await FileSystem.getInfoAsync(PERMISSIONS_FILE);
-      if (info.exists) {
-        const text = await FileSystem.readAsStringAsync(PERMISSIONS_FILE);
-        const data = JSON.parse(text);
-        if (data.storageGranted) return true;
-      }
-    } catch {
-      // ignore
+      return Boolean(await statusSaverService.getSavedFolderUri());
+    } catch (error) {
+      console.warn('Failed checking WhatsApp status folder access:', error);
+      return false;
     }
-    return false;
   }
 
   /**
@@ -89,24 +80,7 @@ class PermissionService {
       return { granted: true };
     }
 
-    try {
-      const SAF = FileSystem.StorageAccessFramework;
-      if (!SAF) return { granted: false };
-
-      const initialUri = SAF.getUriForDirectoryInRoot(
-        'Android/media/com.whatsapp/WhatsApp/Media/.Statuses'
-      );
-      const res = await SAF.requestDirectoryPermissionsAsync(initialUri);
-
-      if (res.granted) {
-        await this.saveState({ storageGranted: true, folderUri: res.directoryUri });
-        return { granted: true, directoryUri: res.directoryUri };
-      }
-      return { granted: false };
-    } catch (e) {
-      console.warn('Storage permission error:', e);
-      return { granted: false };
-    }
+    return statusSaverService.requestAndroidFolderAccess();
   }
 
   /**
@@ -132,23 +106,6 @@ class PermissionService {
     await this.checkClipboardPermission();
 
     return this.checkAllPermissions();
-  }
-
-  private async saveState(patch: Record<string, any> = {}) {
-    if (Platform.OS === 'web') return;
-    try {
-      if (!FileSystem.documentDirectory) return;
-      let current: Record<string, any> = {};
-      const info = await FileSystem.getInfoAsync(PERMISSIONS_FILE);
-      if (info.exists) {
-        const text = await FileSystem.readAsStringAsync(PERMISSIONS_FILE);
-        current = JSON.parse(text);
-      }
-      const updated = { ...current, ...patch, updatedAt: Date.now() };
-      await FileSystem.writeAsStringAsync(PERMISSIONS_FILE, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
   }
 }
 

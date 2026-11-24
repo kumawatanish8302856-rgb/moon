@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAppTheme } from '@/context/ThemeContext';
 import { DownloadedMedia } from '@/types/media';
 import { downloaderService } from '@/services/downloader.service';

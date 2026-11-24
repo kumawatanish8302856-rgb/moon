@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,7 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAppTheme } from '@/context/ThemeContext';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { Header } from '@/components/Header';
@@ -35,8 +35,8 @@ export default function StatusSaverScreen() {
   // Selected for preview
   const [selectedItem, setSelectedItem] = useState<WhatsAppStatusItem | null>(null);
 
-  const loadStatuses = useCallback(async (isPullRefresh = false) => {
-    if (!folderUri || Platform.OS !== 'android') {
+  const loadStatuses = useCallback(async (uri: string | null, isPullRefresh = false) => {
+    if (!uri || Platform.OS !== 'android') {
       setStatuses([]);
       return;
     }
@@ -48,16 +48,49 @@ export default function StatusSaverScreen() {
     }
 
     try {
-      const items = await statusSaverService.loadFromDirectory(folderUri);
+      const items = await statusSaverService.loadFromDirectory(uri);
       setStatuses(items);
       setFolderConnected(true);
-    } catch (e: any) {
-      Alert.alert('Scan Failed', e?.message || 'Could not read WhatsApp status directory.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not read WhatsApp status directory.';
+      console.warn('Failed reading saved WhatsApp status folder:', error);
+      setStatuses([]);
+      setFolderConnected(false);
+      setFolderUri(null);
+      try {
+        await statusSaverService.clearSavedFolderUri();
+      } catch (clearError) {
+        console.warn('Failed to clear unavailable WhatsApp status folder:', clearError);
+      }
+      Alert.alert('Folder Access Lost', `${message} Please select the WhatsApp Status folder again.`);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [folderUri]);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (Platform.OS === 'android') {
+      statusSaverService
+        .getSavedFolderUri()
+        .then((uri) => {
+          if (active && uri) {
+            setFolderUri(uri);
+            void loadStatuses(uri);
+          }
+        })
+        .catch((error) => {
+          console.warn('Failed restoring WhatsApp status folder:', error);
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [loadStatuses]);
 
   const handleRequestAndroidFolder = async () => {
     if (Platform.OS !== 'android') {
@@ -73,15 +106,13 @@ export default function StatusSaverScreen() {
       const res = await statusSaverService.requestAndroidFolderAccess();
       if (res.granted && res.directoryUri) {
         setFolderUri(res.directoryUri);
-        setFolderConnected(true);
-        const items = await statusSaverService.loadFromDirectory(res.directoryUri);
-        setStatuses(items);
-        Alert.alert('Folder Connected', `Found ${items.length} status media files.`);
+        await loadStatuses(res.directoryUri);
       } else {
         Alert.alert('Permission Needed', 'Please select and grant access to the WhatsApp status directory.');
       }
-    } catch {
-      Alert.alert('Error', 'Could not open folder picker.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not open folder picker.';
+      Alert.alert('Folder Access Error', message);
     }
   };
 
@@ -112,7 +143,7 @@ export default function StatusSaverScreen() {
         icon="logo-whatsapp"
         rightAction={
           <TouchableOpacity
-            onPress={() => loadStatuses(true)}
+            onPress={() => loadStatuses(folderUri, true)}
             style={[styles.iconButton, { backgroundColor: colors.backgroundElement }]}>
             <Ionicons name="refresh" size={18} color={colors.whatsapp} />
           </TouchableOpacity>
@@ -256,7 +287,7 @@ export default function StatusSaverScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => loadStatuses(true)}
+                onRefresh={() => loadStatuses(folderUri, true)}
                 tintColor={colors.whatsapp}
               />
             }
