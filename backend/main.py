@@ -2,9 +2,17 @@ import asyncio
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import urllib.parse
 from typing import AsyncGenerator, Dict, Generator, List, Optional
+
+# Disable strict SSL verification to prevent failures caused by antivirus / proxy / self-signed certs
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except Exception:
+    pass
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -111,6 +119,7 @@ def extract_ydl_info(url: str) -> dict:
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
+        "nocheckcertificate": True,
         "extract_flat": False,
         "skip_download": True,
         "socket_timeout": 12,
