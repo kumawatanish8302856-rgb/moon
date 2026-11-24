@@ -18,50 +18,50 @@ export interface ProgressCallback {
   (progress: { percent: number; downloadedBytes: number; totalBytes: number; speed?: string }): void;
 }
 
+export const DEFAULT_PRODUCTION_URL = 'https://moonflow-backend.onrender.com';
+
 /**
  * Automatically resolves the backend server URL:
- * - On Web: uses the current window hostname on port 8000 (e.g. http://localhost:8000)
- * - In Expo development (physical devices): extracts the Metro server host IP dynamically from Constants
- * - Fallback: 10.0.2.2 for Android Emulator, localhost for iOS simulator
+ * 1. Explicit EXPO_PUBLIC_API_URL environment variable (from .env or eas.json)
+ * 2. In local Expo development (__DEV__ with Metro active): uses Metro server host IP on port 8000
+ * 3. Default production fallback: Live cloud backend (https://moonflow-backend.onrender.com)
  */
 export function resolveDefaultBackendUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-  // 0. On Web: always connect to the local/serving host on port 8000
-  // (unless an explicit production https URL is provided in EXPO_PUBLIC_API_URL)
-  if (Platform.OS === 'web') {
-    if (envUrl && envUrl.startsWith('https://')) {
-      return envUrl.replace(/\/+$/, '');
-    }
-    if (typeof window !== 'undefined' && window.location?.hostname) {
-      return `http://${window.location.hostname}:8000`;
-    }
-    return 'http://localhost:8000';
-  }
-
-  // 1. In native Expo development (physical devices over LAN):
-  // Constants.expoConfig?.hostUri dynamically provides the Metro server host IP (e.g. "192.168.20.147:8081").
-  // This automatically keeps in sync with Wi-Fi IP changes without requiring manual .env edits.
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    (Constants as any).expoGoConfig?.debuggerHost ||
-    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
-    (Constants as any).manifest?.debuggerHost;
-
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:8000`;
-    }
-  }
-
-  // 2. Explicit environment variable (e.g. deployed cloud backend or manual LAN override)
+  // 1. Explicit environment variable (deployed cloud backend or custom override)
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // 3. Android emulator uses 10.0.2.2, iOS simulator uses localhost
-  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+  // 2. On Web: connect to local serving host if on localhost, otherwise fallback to production
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost') {
+      return `http://${window.location.hostname}:8000`;
+    }
+    return DEFAULT_PRODUCTION_URL;
+  }
+
+  // 3. In native Expo development (Expo Go / Dev Client connected to Metro):
+  // Constants.expoConfig?.hostUri dynamically provides the Metro server host IP (e.g. "192.168.x.x:8081").
+  if (__DEV__) {
+    const hostUri =
+      Constants.expoConfig?.hostUri ||
+      (Constants as any).expoGoConfig?.debuggerHost ||
+      (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
+      (Constants as any).manifest?.debuggerHost;
+
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+        return `http://${ip}:8000`;
+      }
+    }
+  }
+
+  // 4. Default fallback for physical devices, standalone APKs, and production:
+  // Points to the live cloud backend so physical phones never try to reach 10.0.2.2!
+  return DEFAULT_PRODUCTION_URL;
 }
 
 class DownloaderService {

@@ -131,6 +131,16 @@ def extract_ydl_info(url: str) -> dict:
         return ydl.extract_info(url, download=False)
 
 
+@app.get("/")
+async def root():
+    return {
+        "status": "online",
+        "service": "MOONFLOW Media Downloader API",
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "ffmpeg_available": shutil.which(FFMPEG_BIN) is not None}
