@@ -113,6 +113,7 @@ def extract_ydl_info(url: str) -> dict:
         "no_warnings": True,
         "extract_flat": False,
         "skip_download": True,
+        "socket_timeout": 12,
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "mweb", "web"]

@@ -29,21 +29,9 @@ export const DEFAULT_PRODUCTION_URL = 'https://moonflow-backend.onrender.com';
 export function resolveDefaultBackendUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-  // 1. Explicit environment variable (deployed cloud backend or custom override)
-  if (envUrl) {
-    return envUrl.replace(/\/+$/, '');
-  }
-
-  // 2. On Web: connect to local serving host if on localhost, otherwise fallback to production
-  if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost') {
-      return `http://${window.location.hostname}:8000`;
-    }
-    return DEFAULT_PRODUCTION_URL;
-  }
-
-  // 3. In native Expo development (Expo Go / Dev Client connected to Metro):
-  // Constants.expoConfig?.hostUri dynamically provides the Metro server host IP (e.g. "192.168.x.x:8081").
+  // 1. In native Expo development (__DEV__ with Metro active):
+  // Connect to the local PC's FastAPI server over LAN (e.g. 192.168.x.x:8000).
+  // This uses your home Wi-Fi network, which YouTube does NOT block!
   if (__DEV__) {
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -59,8 +47,20 @@ export function resolveDefaultBackendUrl(): string {
     }
   }
 
-  // 4. Default fallback for physical devices, standalone APKs, and production:
-  // Points to the live cloud backend so physical phones never try to reach 10.0.2.2!
+  // 2. Explicit environment variable (from .env or eas.json)
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // 3. On Web: connect to local serving host if on localhost, otherwise fallback to production
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost') {
+      return `http://${window.location.hostname}:8000`;
+    }
+    return DEFAULT_PRODUCTION_URL;
+  }
+
+  // 4. Default production fallback for standalone APKs & physical devices
   return DEFAULT_PRODUCTION_URL;
 }
 
@@ -316,8 +316,13 @@ class DownloaderService {
       return result;
     } catch (err: any) {
       clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        throw new Error('Connection timed out while fetching media info from backend.');
+      if (
+        err.name === 'AbortError' ||
+        err.name === 'TimeoutError' ||
+        err.message?.includes('canceled') ||
+        err.message?.includes('cancelled')
+      ) {
+        throw new Error('Connection timed out. The backend server took too long to respond.');
       }
       if (
         err.message &&
